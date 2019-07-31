@@ -13,10 +13,7 @@ import time
 
 def entry2gid(entry,relation):
     """
-    功能：将通路互作关系中包含的entry id信息转换为entry-->gene形式的DataFrame
-    entry: 从通路文件中提取到的entry id与gene id 之间的对应关系，dtype：dict，entry id：gene id list
-    relation：从通路文件中提取的entry id之间的互作关系，dtype：dict-->（entry1，entry2）：interaction
-    return：dtype：pd.DataFrame，index为entry id，value为其对应的基因id，1对多关系。
+    transform KEGG pathway information to dataframe
     """
     _a = pd.DataFrame(list(relation.keys()))
     _r = set(_a[0]) | set(_a[1])
@@ -32,9 +29,7 @@ def entry2gid(entry,relation):
 
 def gene_mut_num(g, idx_mut, entry):
     """
-    获取基因g在样本中的突变样本数
-    idx_mut：癌症或癌症亚型的突变谱，dtype：pd.DataFrame，index为gene id,列Sample为该gene所突变的样本id
-    entry：通路entry信息，每个人entry id对应的基因id（一个或多个，list），dtype:dict
+    caculate the number of sample with gene g was mutation
     """
     try:
         _m = idx_mut.loc[entry.get(g)].drop_duplicates().count()['Sample']
@@ -119,12 +114,12 @@ def write_map_one(name, all_subpathway, gidx, relation, entry, itos, folder):
 def SubPathwayOne(name, relation, mut, entry, gene_info, folder, step, minsize):
     itos = gene_info.set_index('GeneID') 
     gidx = mut.set_index('Mutation Gene')
-    _ls = mut['Sample'].drop_duplicates().shape[0] #总样本数
+    _ls = mut['Sample'].drop_duplicates().shape[0] #sample size
     _nodege = entry2gid(entry, relation)
     if not isinstance(_nodege, pd.DataFrame): return None
     G = nx.Graph()
     G.add_edges_from(relation.keys())
-    all_subpathway = [] #用于存放所有子通路的entry id
+    all_subpathway = [] #sub-pathway entry id
     for subG in nx.connected_component_subgraphs(G):
         if len(subG.nodes()) > minsize and set(subG.node) & set(_nodege.index):
             _seed = _nodege.loc[list(subG.node)].dropna().groupby(by=0).apply(lambda x : gidx.loc[x[1]].drop_duplicates().count()).idxmax()['Sample']
@@ -149,17 +144,17 @@ def SubPathwayOne(name, relation, mut, entry, gene_info, folder, step, minsize):
                 _adj_node = _temp_adj_node
                 if not _adj_node: break
             all_subpathway.append(sub_path)
-    #画图
+    #plot
     if all_subpathway:
         write_map_one(name, all_subpathway, gidx, relation, entry, itos, folder)
-    _tmg = _nodege[1].drop_duplicates().shape[0] #总突变基因
-    _tmf = gidx.loc[_nodege[1]].drop_duplicates().count()['Sample']/_ls #总突变率
+    _tmg = _nodege[1].drop_duplicates().shape[0] #the total number of mutation gene
+    _tmf = gidx.loc[_nodege[1]].drop_duplicates().count()['Sample']/_ls #the total mutation frequency
     _mg,_mf,_nmg = [],[],[]
     all_subpathway_info = []
     for sub_path in all_subpathway:
-        _mg = list(itos.loc[_nodege.loc[sub_path][1].dropna()]['Symbol']) #子通路突变基因
-        _mf = gidx.loc[_nodege.loc[sub_path][1]].drop_duplicates().count()['Sample']/_ls #子通路突变频率
-        _nmg = len(_mg) #子通路突变基因数
+        _mg = list(itos.loc[_nodege.loc[sub_path][1].dropna()]['Symbol']) #sub-pathway mutaion gene
+        _mf = gidx.loc[_nodege.loc[sub_path][1]].drop_duplicates().count()['Sample']/_ls #the mutation frequency of sub-pathway
+        _nmg = len(_mg) #the number of sub-pathway gene
         all_subpathway_info.append([_nmg, _mf, _tmg, _tmf, _mg])
     return all_subpathway_info
 
